@@ -1,0 +1,21 @@
+* {
+  margin: 0;
+  padding: 0;
+}
+#can {
+  background: #ddd;
+}
+#can2 {
+  background: #111;
+}
+.predator, .food {
+  border-radius: 50%;
+  position: absolute;
+  
+}
+.food {
+  border: 1px solid #0f0;
+}
+.predator {
+  
+}
