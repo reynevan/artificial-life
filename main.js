@@ -23,7 +23,7 @@ wspolne jedzenie duzych roslin
     canvas2 = document.getElementById('can2');
     can = {
       w: $(window).width(),
-      h: 800
+      h: $(window).height()*0.8
     };
     can2 = {
       w: can.w,
