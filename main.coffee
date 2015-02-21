@@ -5,7 +5,7 @@ wspolne jedzenie duzych roslin
 ###
 jQuery ($) ->
   config = 
-    interval: 50
+    interval: 70
     pause: false
 
   settings =
@@ -17,7 +17,7 @@ jQuery ($) ->
   canvas2 = document.getElementById 'can2'
   can = {
     w: $(window).width(),
-    h: 800
+    h: screen.height*0.8
   }
   can2 = {
     w: can.w,
@@ -30,11 +30,12 @@ jQuery ($) ->
   canvas2.width = can.w
   canvas2.height = can2.h
 
-  
+  console.log can.h+' '+$(window).height()
 
   ctx = canvas.getContext('2d')
   ctx2 = canvas2.getContext('2d')
   
+  window.plants = 0
 
   class Organism
     @id = 0
@@ -60,6 +61,7 @@ jQuery ($) ->
       this.init_t = 100 
       this.t = this.init_t
       this.age = 0
+      this.maxAge = 150
       this.dead = false
       this.ignored = [] #ignored enemies
       this.memory = 20 #max number of igonred enemies
@@ -129,11 +131,11 @@ jQuery ($) ->
         if this.r > this.max_r
           this.r = this.max_r
         
-        if this.energy < 0 || this.age > 300
+        if this.energy < 0 || this.age > this.maxAge
           this.die()
         else if this.energy > 20
           this.needFood = false
-        else if this.energy < 10
+        else if this.energy < 12
           this.needFood = true
       
       if this.needFood #|| this.reproduced || (!this.reproduced && this.age < 30)
@@ -157,7 +159,7 @@ jQuery ($) ->
 
     draw: ->
       ctx.lineWidth = 1
-      this.eyes = 
+      ###this.eyes = 
         left: {
           x: this.x+Math.sin(this.deg+Math.PI/2-Math.PI/5)*this.r
           y: this.y+Math.cos(this.deg+Math.PI/2-Math.PI/5)*this.r
@@ -165,30 +167,33 @@ jQuery ($) ->
         right: {
           x: this.x-Math.sin(this.deg+Math.PI/2+Math.PI/5)*this.r
           y: this.y-Math.cos(this.deg+Math.PI/2+Math.PI/5)*this.r
-        }
+        }###
       ctx.save()
       
       if this.searchingPartner
-        ctx.shadowColor = '#f00'
-        ctx.shadowBlur = 5
-        ctx.beginPath()
-        ctx.arc this.x, this.y, this.r+1, 0, Math.PI*2
-        ctx.fill()
+        ctx.shadowColor = 'rgb('+(255-this.color.red)+','+(255-this.color.green)+','+(255-this.color.blue)+')'
+        ctx.shadowBlur = 6
+        #ctx.beginPath()
+        #ctx.arc this.x, this.y, this.r+1, 0, Math.PI*2
+        #ctx.fill()
       
-      ctx.beginPath()
+      ###ctx.beginPath()
       ctx.arc this.eyes.left.x, this.eyes.left.y, this.r/4, 0, Math.PI*2
       ctx.stroke()
       ctx.beginPath()
       ctx.arc this.eyes.right.x, this.eyes.right.y, this.r/4, 0, Math.PI*2
-      ctx.stroke()
+      ctx.stroke()###
 
       ctx.fillStyle = 'rgb('+this.color.red+','+this.color.green+','+this.color.blue+')'
       ctx.beginPath()
-      ctx.arc this.x, this.y, this.r, 0, Math.PI*2
+      #ctx.arc this.x, this.y, this.r, 0, Math.PI*2
+      ctx.moveTo this.x+Math.sin(this.deg)*this.r, this.y+Math.cos(this.deg)*this.r
+      ctx.lineTo this.x+Math.sin(this.deg+2.5*Math.PI/3)*this.r, this.y+Math.cos(this.deg+2.5*Math.PI/3)*this.r
+      ctx.lineTo this.x+Math.sin(this.deg-2.5*Math.PI/3)*this.r, this.y+Math.cos(this.deg-2.5*Math.PI/3)*this.r
       ctx.fill()
 
       ctx.restore()
-      ctx.fillText this.energy.round(10), this.x, this.y-this.r-3
+      #ctx.fillText this.energy.round(10), this.x, this.y-this.r-3
       if (this.friendly)
         ctx.fillText '+', this.x, this.y+2*this.r+5 
 
@@ -237,12 +242,6 @@ jQuery ($) ->
             this.fails++
             this.energy-=2
             window.objects.push(new Predator())
-          
-      
-      #if this.x > can.w - 30 || this.x < 30 || this.y < 30 || this.y > can.h - 30
-        #this.deg += Math.PI/10
-      
-
       this.move()
       
     move: ->
@@ -264,7 +263,6 @@ jQuery ($) ->
         d = dist(this, organism)
         if d < 150 && organism.id != this.id
           inSight.push(organism)
-
       deg = 0
       for org in inSight
         deg += (-Math.atan2(this.x-org.x, org.y-this.y))/inSight.length
@@ -361,8 +359,8 @@ jQuery ($) ->
         childColor = mixColors(this.color, organism.color)
         window.organisms.push(new Organism(newGenom, {'coords': {x: this.x+10, y: this.y+10}, 'color': childColor}))
         
-      this.reproducedTime = 30000
-      organism.reproducedTime = 30000
+      this.reproducedTime = 40000
+      organism.reproducedTime = 40000
       this.searchingPartner = false
       organism.searchingPartner = false
 
@@ -378,7 +376,7 @@ jQuery ($) ->
     constructor: (genom, options)->
       this.id = Food.id++
       this.class = 'plant'
-     
+      window.plants++
       if options && options['coords']
         this.x = options['coords'].x
         this.y = options['coords'].y
@@ -444,6 +442,7 @@ jQuery ($) ->
 
         if this.age > 80
           this.dead = true
+          window.plants--
           console.log 'pssssstrzczc'
 
          
@@ -511,26 +510,25 @@ jQuery ($) ->
 
       ctx.restore()
 
-  window.objects = []
-  window.organisms = []
-  for i in [0...settings.initOrganisms]
-    window.organisms.push new Organism() 
-  for i in [0...Math.round(settings.initPlants)]
-    window.objects.push(new Food(null, {'age': (Math.random()*5+15).round(1)}))
-    if i%4 == 0
-      window.objects.push(new Predator())
-  window.foods = 0
+  init = ->
+    window.objects = []
+    window.organisms = []
+    window.plants = 0
+    for i in [0...settings.initOrganisms]
+      window.organisms.push new Organism() 
+    for i in [0...Math.round(settings.initPlants)]
+      window.objects.push(new Food(null, {'age': (Math.random()*5+15).round(1)}))
+      if i%4 == 0
+        window.objects.push(new Predator())
+    window.foods = 0
+    time = 1000
+    window.i = 0
+    window.f0 = 0
+    window.f = window.foods
+    window.o = window.objects.length
+    window. o0 = 0
 
-  
-        
-  time = 1000
-  window.i = 0
-  window.f0 = 0
-  window.f = window.foods
-  window.o = window.objects.length
-  window. o0 = 0
-
-  removeDead= ->
+  removeDead = ->
     for i in [0...window.organisms.length]
       organism = window.organisms[i]
       if organism.dead
@@ -565,6 +563,9 @@ jQuery ($) ->
         
       Food.spree()
 
+      ctx.fillText "Organisms: "+window.organisms.length, 10, 10
+      ctx.fillText "Plants: "+window.fw, 10, 30
+
       time -= config.interval
       if time < 0
         removeDead()
@@ -595,6 +596,10 @@ jQuery ($) ->
         if window.i > can2.w
           window.i = 0
 
+
+
+
+  init()
   setInterval (-> loopx()),  config.interval 
 
   ###
@@ -627,6 +632,12 @@ jQuery ($) ->
         closest = d
         closest_org = org
     console.log closest_org
+
+  $('#restart').on 'click', (event) ->
+    event.preventDefault()
+    settings.initPlants = $('#plants').val()
+    settings.initOrganisms = $('#organisms').val()  
+    init()
 
 dist = (obj1, obj2) ->
   Math.sqrt( Math.pow(obj1.x - obj2.x, 2)+Math.pow(obj1.y - obj2.y, 2) )
