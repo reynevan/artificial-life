@@ -2,14 +2,13 @@
 /*
 TODO
 uczenie sie od kolegow
-wspolne jedzenie duzych roslin
  */
 
 (function() {
   var dist, mixColors, rnd, uni_rnd;
 
   jQuery(function($) {
-    var Food, Organism, Predator, can, can2, canvas, canvas2, config, ctx, ctx2, init, loopx, removeDead, settings;
+    var Organism, Plant, Poison, Predator, can, can2, canvas, canvas2, config, ctx, ctx2, init, loopx, removeDead, settings, time;
     config = {
       interval: 70,
       pause: false
@@ -74,7 +73,9 @@ wspolne jedzenie duzych roslin
         this.searchingPartner = false;
         this.needFood = true;
         this.reproduced = false;
-        return this.reproducedTime = 0;
+        this.reproducedTime = 0;
+        this.inSight = [];
+        return this.sight = 100;
       };
 
       Organism.prototype.setOptions = function(options) {
@@ -181,30 +182,11 @@ wspolne jedzenie duzych roslin
 
       Organism.prototype.draw = function() {
         ctx.lineWidth = 1;
-
-        /*this.eyes = 
-          left: {
-            x: this.x+Math.sin(this.deg+Math.PI/2-Math.PI/5)*this.r
-            y: this.y+Math.cos(this.deg+Math.PI/2-Math.PI/5)*this.r
-          }
-          right: {
-            x: this.x-Math.sin(this.deg+Math.PI/2+Math.PI/5)*this.r
-            y: this.y-Math.cos(this.deg+Math.PI/2+Math.PI/5)*this.r
-          }
-         */
         ctx.save();
         if (this.searchingPartner) {
           ctx.shadowColor = 'rgb(' + (255 - this.color.red) + ',' + (255 - this.color.green) + ',' + (255 - this.color.blue) + ')';
           ctx.shadowBlur = 6;
         }
-
-        /*ctx.beginPath()
-        ctx.arc this.eyes.left.x, this.eyes.left.y, this.r/4, 0, Math.PI*2
-        ctx.stroke()
-        ctx.beginPath()
-        ctx.arc this.eyes.right.x, this.eyes.right.y, this.r/4, 0, Math.PI*2
-        ctx.stroke()
-         */
         ctx.fillStyle = 'rgb(' + this.color.red + ',' + this.color.green + ',' + this.color.blue + ')';
         ctx.beginPath();
         ctx.moveTo(this.x + Math.sin(this.deg) * this.r, this.y + Math.cos(this.deg) * this.r);
@@ -213,17 +195,17 @@ wspolne jedzenie duzych roslin
         ctx.fill();
         ctx.restore();
         if (this.friendly) {
-          return ctx.fillText('+', this.x, this.y + 2 * this.r + 5);
+          return ctx.fillText('.', this.x, this.y + 2 * this.r + 5);
         }
       };
 
       Organism.prototype.searchFood = function() {
-        var d, decision, degToObj, i, inSight, learn, obj, _i, _ref;
+        var d, decision, degToObj, i, learn, obj, objectsInSight, _i, _ref;
         this.searchingPartner = false;
         if (Math.random() > 0.9) {
           this.deg += Math.PI * (Math.random() * 0.4 - 0.2);
         }
-        inSight = [];
+        objectsInSight = [];
         for (i = _i = 0, _ref = window.objects.length; 0 <= _ref ? _i < _ref : _i > _ref; i = 0 <= _ref ? ++_i : --_i) {
           obj = window.objects[i];
           d = dist(this, obj);
@@ -231,15 +213,15 @@ wspolne jedzenie duzych roslin
           obj.index = i;
           if (d < 100) {
             if ((obj.genom[0] === -1 && obj.r < this.r) || obj.genom[0] === 1) {
-              inSight.push(obj);
+              objectsInSight.push(obj);
             }
           }
         }
-        inSight.sort(function(a, b) {
+        objectsInSight.sort(function(a, b) {
           return a.d - b.d;
         });
-        if (inSight.length > 0) {
-          obj = inSight[0];
+        if (objectsInSight.length > 0) {
+          obj = objectsInSight[0];
           degToObj = -Math.atan2(this.x - obj.x, obj.y - this.y);
           decision = this.brain.process(obj.genom.slice(1));
           if (decision[1] < 0.8 && decision[0] > 0.5) {
@@ -262,7 +244,7 @@ wspolne jedzenie duzych roslin
             } else {
               this.fails++;
               this.energy -= 2;
-              window.objects.push(new Predator());
+              window.objects.push(new Poison());
             }
           }
         }
@@ -287,21 +269,21 @@ wspolne jedzenie duzych roslin
       };
 
       Organism.prototype.stayInGroup = function() {
-        var d, deg, inSight, org, organism, _i, _j, _len, _len1, _ref;
-        this.avoidPredators();
-        inSight = [];
+        var d, deg, org, organism, _i, _j, _len, _len1, _ref, _ref1;
+        this.inSight = [];
         _ref = window.organisms;
         for (_i = 0, _len = _ref.length; _i < _len; _i++) {
           organism = _ref[_i];
           d = dist(this, organism);
           if (d < 150 && organism.id !== this.id) {
-            inSight.push(organism);
+            this.inSight.push(organism);
           }
         }
         deg = 0;
-        for (_j = 0, _len1 = inSight.length; _j < _len1; _j++) {
-          org = inSight[_j];
-          deg += (-Math.atan2(this.x - org.x, org.y - this.y)) / inSight.length;
+        _ref1 = this.inSight;
+        for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
+          org = _ref1[_j];
+          deg += (-Math.atan2(this.x - org.x, org.y - this.y)) / this.inSight.length;
         }
         if (this.deg < deg) {
           return this.deg += 0.1;
@@ -310,7 +292,7 @@ wspolne jedzenie duzych roslin
         }
       };
 
-      Organism.prototype.avoidPredators = function() {
+      Organism.prototype.avoidPoisons = function() {
         var d, decision, degToObj, i, inSight, obj, _i, _ref;
         if (Math.random() > 0.9) {
           this.deg += Math.PI * (Math.random() * 0.4 - 0.2);
@@ -357,7 +339,6 @@ wspolne jedzenie duzych roslin
       Organism.prototype.searchPartner = function() {
         var d, inSight, move, organism, _i, _len, _ref;
         this.searchingPartner = true;
-        this.avoidPredators();
         move = true;
         inSight = [];
         _ref = window.organisms;
@@ -388,13 +369,12 @@ wspolne jedzenie duzych roslin
       };
 
       Organism.prototype.reproduce = function(organism) {
-        var child, childColor, childrenNumber, gen, i, newGenom, sliceN, _i, _j, _k, _ref, _ref1;
-        childrenNumber = rnd(1, 2).nzero().round(1);
+        var child, childColor, childrenNumber, gen, i, newGenom, _i, _j, _k, _ref, _ref1;
+        childrenNumber = rnd(1, 2).nzero(1).round(1);
         for (child = _i = 0; 0 <= childrenNumber ? _i < childrenNumber : _i > childrenNumber; child = 0 <= childrenNumber ? ++_i : --_i) {
-          sliceN = Math.round(Math.random() * this.genom.length);
           newGenom = [];
           for (i = _j = 0, _ref = this.genom.length; 0 <= _ref ? _j < _ref : _j > _ref; i = 0 <= _ref ? ++_j : --_j) {
-            if (i < sliceN) {
+            if (Math.random() > 0.5) {
               newGenom[i] = this.genom[i];
             } else {
               newGenom[i] = organism.genom[i];
@@ -438,17 +418,72 @@ wspolne jedzenie duzych roslin
       return Organism;
 
     })();
-    Food = (function() {
-      Food.id = 0;
+    Predator = (function() {
+      Predator.id = 0;
 
-      Food.spree = function() {
-        if (Math.random() > 0.95) {
-          return window.objects.push(new Food());
+      function Predator(genom, options) {
+        return;
+      }
+
+      Predator.prototype.initialize = function() {
+        this.deg = Math.random() * 2 * Math.PI;
+        this.max_r = this.genom[0];
+        this.r = (this.max_r / 5).nzero(1);
+        this.speed = this.genom[1];
+        this.friendly = this.genom[2];
+        this.layers = [3, 2];
+        this.brain = new NN({
+          'layers': this.layers,
+          'momentum': this.genom[3],
+          'rate': this.genom[4]
+        });
+        this.fails = 0;
+        this.successes = 0;
+        this.energy = 15;
+        this.init_t = 100;
+        this.t = this.init_t;
+        this.age = 0;
+        this.maxAge = 150;
+        this.dead = false;
+        this.partner = -1;
+        this.searchingPartner = false;
+        this.needFood = true;
+        this.reproduced = false;
+        this.reproducedTime = 0;
+        this.inSight = [];
+        return this.sight = 100;
+      };
+
+      Predator.prototype.setGenom = function(genom) {
+        if (!genom) {
+          this.genom = [];
+          this.genom[0] = Math.random() * 4 + 2;
+          this.genom[1] = Math.random() * 20 + 20;
+          this.genom[2] = Math.round(Math.random());
+          this.genom[3] = Math.random() * 0.8;
+          this.genom[4] = Math.random() * 5;
+          if (Math.random() > 0.9) {
+            return this.genom[2] = (++this.genom[3]) % 2;
+          }
+        } else {
+          return this.genom = genom;
         }
       };
 
-      function Food(genom, options) {
-        this.id = Food.id++;
+      return Predator;
+
+    })();
+    Plant = (function() {
+      Plant.id = 0;
+
+      Plant.spree = function() {
+        if (Math.random() > 0.95) {
+          return window.objects.push(new Plant());
+        }
+      };
+
+      function Plant(genom, options) {
+        this.id = Plant.id++;
         this["class"] = 'plant';
         window.plants++;
         if (options && options['coords']) {
@@ -491,7 +526,7 @@ wspolne jedzenie duzych roslin
         this.r = (this.age / 20) * this.max_r;
       }
 
-      Food.prototype.logic = function() {
+      Plant.prototype.logic = function() {
         var children, d, i, obj, _i, _j, _ref;
         this.neighbours = 0;
         this.t -= config.interval;
@@ -503,7 +538,7 @@ wspolne jedzenie duzych roslin
             obj = window.objects[i];
             if (obj["class"] === 'plant') {
               d = dist(this, obj);
-              if (d < 30) {
+              if (d < 40) {
                 this.neighbours++;
               }
             }
@@ -528,12 +563,12 @@ wspolne jedzenie duzych roslin
           if (this.age > 80) {
             this.dead = true;
             window.plants--;
-            return console.log('pssssstrzczc');
+            return console.log('roslinka umiera rzal :<');
           }
         }
       };
 
-      Food.prototype.reproduce = function() {
+      Plant.prototype.reproduce = function() {
         var coords, i, newColor, newColors, newR, _i;
         newColors = [this.color.red, this.color.green, this.color.blue];
         for (i = _i = 0; _i < 3; i = ++_i) {
@@ -553,7 +588,7 @@ wspolne jedzenie duzych roslin
         };
         if (coords.x > 10 && coords.x < can.w - 10 && coords.y > 10 && coords.y < can.h - 10) {
           newR = (this.r + rnd(0, 1)).nzero(0.5);
-          window.objects.push(new Food(null, {
+          window.objects.push(new Plant(null, {
             'coords': coords,
             'color': newColor,
             'r': newR
@@ -562,26 +597,26 @@ wspolne jedzenie duzych roslin
         }
       };
 
-      Food.prototype.draw = function() {
+      Plant.prototype.draw = function() {
         ctx.save();
-        ctx.shadowColor = '#0f0';
-        ctx.shadowBlur = 2;
         ctx.beginPath();
         ctx.fillStyle = 'rgb(' + this.color.red + ',' + this.color.green + ',' + this.color.blue + ')';
         ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
         ctx.fill();
+        ctx.strokeStyle = '#0f0';
+        ctx.stroke();
         return ctx.restore();
       };
 
-      return Food;
+      return Plant;
 
     })();
-    Predator = (function() {
-      Predator.id = 0;
+    Poison = (function() {
+      Poison.id = 0;
 
-      function Predator() {
-        this["class"] = 'predator';
-        this.id = Predator.id++;
+      function Poison() {
+        this["class"] = 'poison';
+        this.id = Poison.id++;
         this.x = Math.random() * (can.w - 100) + 50;
         this.y = Math.random() * (can.h - 100) + 50;
         this.seed = Math.random();
@@ -596,28 +631,29 @@ wspolne jedzenie duzych roslin
         this.dead = false;
       }
 
-      Predator.prototype.logic = function() {};
+      Poison.prototype.logic = function() {};
 
-      Predator.prototype.draw = function() {
+      Poison.prototype.draw = function() {
         if (this.memory > 1000) {
           this.memory = 0;
           this.ignore = false;
         }
         ctx.save();
         ctx.beginPath();
-        ctx.shadowColor = '#f00';
-        ctx.shadowBlur = 2;
         ctx.fillStyle = this.color;
         ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+        ctx.strokeStyle = '#f00';
+        ctx.stroke();
         ctx.fill();
         return ctx.restore();
       };
 
-      return Predator;
+      return Poison;
 
     })();
+    time = 0;
     init = function() {
-      var i, time, _i, _j, _ref, _ref1;
+      var i, _i, _j, _ref, _ref1;
       window.objects = [];
       window.organisms = [];
       window.plants = 0;
@@ -625,20 +661,20 @@ wspolne jedzenie duzych roslin
         window.organisms.push(new Organism());
       }
       for (i = _j = 0, _ref1 = Math.round(settings.initPlants); 0 <= _ref1 ? _j < _ref1 : _j > _ref1; i = 0 <= _ref1 ? ++_j : --_j) {
-        window.objects.push(new Food(null, {
+        window.objects.push(new Plant(null, {
           'age': (Math.random() * 5 + 15).round(1)
         }));
         if (i % 4 === 0) {
-          window.objects.push(new Predator());
+          window.objects.push(new Poison());
         }
       }
-      window.foods = 0;
       time = 1000;
       window.i = 0;
       window.f0 = 0;
-      window.f = window.foods;
-      window.o = window.objects.length;
-      return window.o0 = 0;
+      window.f = window.plants;
+      window.o = window.organisms.length;
+      window.o0 = 0;
+      return ctx2.clearRect(0, 0, can2.w, can2.h);
     };
     removeDead = function() {
       var i, obj, organism, _i, _j, _ref, _ref1, _results;
@@ -650,13 +686,9 @@ wspolne jedzenie duzych roslin
           break;
         }
       }
-      window.foods = 0;
       _results = [];
       for (i = _j = 0, _ref1 = window.objects.length; 0 <= _ref1 ? _j < _ref1 : _j > _ref1; i = 0 <= _ref1 ? ++_j : --_j) {
         obj = window.objects[i];
-        if (obj["class"] === 'plant') {
-          window.foods++;
-        }
         if (obj.dead) {
           window.objects.splice(i, 1);
           removeDead();
@@ -668,7 +700,7 @@ wspolne jedzenie duzych roslin
       return _results;
     };
     loopx = function() {
-      var i, obj, organism, time, _i, _j, _len, _ref, _ref1;
+      var i, obj, organism, _i, _j, _len, _ref, _ref1;
       if (!config.pause) {
         if (window.organisms.length <= 0) {
           config.pause = true;
@@ -686,9 +718,9 @@ wspolne jedzenie duzych roslin
           obj.logic();
           obj.draw();
         }
-        Food.spree();
+        Plant.spree();
         ctx.fillText("Organisms: " + window.organisms.length, 10, 10);
-        ctx.fillText("Plants: " + window.fw, 10, 30);
+        ctx.fillText("Plants: " + window.plants, 10, 30);
         time -= config.interval;
         if (time < 0) {
           removeDead();
@@ -700,7 +732,7 @@ wspolne jedzenie duzych roslin
           ctx2.moveTo(window.i, (can2.h - (window.f0 * 0.5)).nzero(5));
           ctx2.lineTo(window.i + 1, (can2.h - (window.f * 0.5)).nzero(5));
           window.f0 = window.f;
-          window.f = window.foods;
+          window.f = window.plants;
           ctx2.stroke();
           ctx2.beginPath();
           ctx2.strokeStyle = '#0f0';

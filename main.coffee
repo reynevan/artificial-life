@@ -1,7 +1,6 @@
 ###
 TODO
 uczenie sie od kolegow
-wspolne jedzenie duzych roslin
 ###
 jQuery ($) ->
   config = 
@@ -70,6 +69,8 @@ jQuery ($) ->
       this.needFood = true
       this.reproduced = false
       this.reproducedTime = 0
+      this.inSight = []
+      this.sight = 100
 
     setOptions: (options) ->
       if options
@@ -159,30 +160,11 @@ jQuery ($) ->
 
     draw: ->
       ctx.lineWidth = 1
-      ###this.eyes = 
-        left: {
-          x: this.x+Math.sin(this.deg+Math.PI/2-Math.PI/5)*this.r
-          y: this.y+Math.cos(this.deg+Math.PI/2-Math.PI/5)*this.r
-        }
-        right: {
-          x: this.x-Math.sin(this.deg+Math.PI/2+Math.PI/5)*this.r
-          y: this.y-Math.cos(this.deg+Math.PI/2+Math.PI/5)*this.r
-        }###
       ctx.save()
       
       if this.searchingPartner
         ctx.shadowColor = 'rgb('+(255-this.color.red)+','+(255-this.color.green)+','+(255-this.color.blue)+')'
         ctx.shadowBlur = 6
-        #ctx.beginPath()
-        #ctx.arc this.x, this.y, this.r+1, 0, Math.PI*2
-        #ctx.fill()
-      
-      ###ctx.beginPath()
-      ctx.arc this.eyes.left.x, this.eyes.left.y, this.r/4, 0, Math.PI*2
-      ctx.stroke()
-      ctx.beginPath()
-      ctx.arc this.eyes.right.x, this.eyes.right.y, this.r/4, 0, Math.PI*2
-      ctx.stroke()###
 
       ctx.fillStyle = 'rgb('+this.color.red+','+this.color.green+','+this.color.blue+')'
       ctx.beginPath()
@@ -195,13 +177,13 @@ jQuery ($) ->
       ctx.restore()
       #ctx.fillText this.energy.round(10), this.x, this.y-this.r-3
       if (this.friendly)
-        ctx.fillText '+', this.x, this.y+2*this.r+5 
+        ctx.fillText '.', this.x, this.y+2*this.r+5 
 
     searchFood: ->
       this.searchingPartner = false
       if Math.random() > 0.9
         this.deg += Math.PI*(Math.random()*0.4-0.2)
-      inSight = []
+      objectsInSight = []
       for i in [0...window.objects.length]
         obj = window.objects[i]
         d = dist(this, obj)
@@ -209,11 +191,11 @@ jQuery ($) ->
         obj.index = i
         if d < 100
           if (obj.genom[0] == -1 && obj.r < this.r ) || obj.genom[0] == 1
-            inSight.push(obj)
-      inSight.sort (a,b)-> a.d-b.d
+            objectsInSight.push(obj)
+      objectsInSight.sort (a,b)-> a.d-b.d
       
-      if inSight.length > 0
-        obj = inSight[0]
+      if objectsInSight.length > 0
+        obj = objectsInSight[0]
         degToObj = -Math.atan2(this.x-obj.x, obj.y-this.y)
         decision = this.brain.process(obj.genom.slice(1))
         if decision[1] < 0.8 && decision[0] > 0.5
@@ -241,7 +223,7 @@ jQuery ($) ->
             #console.log 'tyle pszegrac ._.'
             this.fails++
             this.energy-=2
-            window.objects.push(new Predator())
+            window.objects.push(new Poison())
       this.move()
       
     move: ->
@@ -257,22 +239,22 @@ jQuery ($) ->
       this.y += this.speed * Math.cos(this.deg) / 10
 
     stayInGroup: ->
-      this.avoidPredators()
-      inSight = []
+      #this.avoidPoisons()
+      this.inSight = []
       for organism in window.organisms
         d = dist(this, organism)
         if d < 150 && organism.id != this.id
-          inSight.push(organism)
+          this.inSight.push(organism)
       deg = 0
-      for org in inSight
-        deg += (-Math.atan2(this.x-org.x, org.y-this.y))/inSight.length
+      for org in this.inSight
+        deg += (-Math.atan2(this.x-org.x, org.y-this.y))/this.inSight.length
       
       if this.deg < deg
         this.deg += 0.1
       else 
         this.deg -= 0.1
 
-    avoidPredators: ->
+    avoidPoisons: ->
       if Math.random() > 0.9
         this.deg += Math.PI*(Math.random()*0.4-0.2)
       inSight = []
@@ -307,7 +289,7 @@ jQuery ($) ->
 
     searchPartner: ->
       this.searchingPartner = true
-      this.avoidPredators()
+      #this.avoidPoisons()
       move = true
       inSight = []
       for organism in window.organisms
@@ -328,12 +310,11 @@ jQuery ($) ->
         this.move()
     
     reproduce: (organism)->
-      childrenNumber = rnd(1, 2).nzero().round(1) 
+      childrenNumber = rnd(1, 2).nzero(1).round(1) 
       for child in [0...childrenNumber]
-        sliceN = Math.round(Math.random()*this.genom.length)
         newGenom = []
         for i in [0...this.genom.length]
-          if i < sliceN
+          if Math.random() > 0.5
             newGenom[i] = this.genom[i]
           else
             newGenom[i] = organism.genom[i]
@@ -364,17 +345,60 @@ jQuery ($) ->
       this.searchingPartner = false
       organism.searchingPartner = false
 
-  # genom[0] -1:food  1: predator
+  class Predator
+    @id = 0
+    constructor: (genom, options) ->
+      return
+
+    initialize: ->
+      this.deg = Math.random()*2*Math.PI
+      this.max_r = this.genom[0]
+      this.r = (this.max_r/5).nzero(1)
+      this.speed = this.genom[1]
+      this.friendly = this.genom[2]
+      this.layers = [3,2]
+      this.brain = new NN {'layers':this.layers, 'momentum': this.genom[3], 'rate': this.genom[4]}
+      this.fails = 0
+      this.successes = 0
+      this.energy = 15
+      this.init_t = 100 
+      this.t = this.init_t
+      this.age = 0
+      this.maxAge = 150
+      this.dead = false
+      this.partner = -1 #id
+      this.searchingPartner = false
+      this.needFood = true
+      this.reproduced = false
+      this.reproducedTime = 0
+      this.inSight = []
+      this.sight = 100
+      
+    setGenom: (genom) ->
+      #genom = [max_r, speed, likes group, momentum, rate]
+      if !genom
+        this.genom = []
+        this.genom[0] = Math.random()*4+2
+        this.genom[1] = Math.random()*20+20
+        this.genom[2] = Math.round(Math.random())
+        this.genom[3] = Math.random()*0.8
+        this.genom[4] = Math.random()*5
+        if Math.random() > 0.9
+          this.genom[2] = (++this.genom[3])%2 
+      else
+        this.genom = genom
+
+  # genom[0] -1:food  1: poison
   # genom[1] red
   # genom[2] green
   # genom[3] radius
-  class Food
+  class Plant
     @id = 0
     @spree: ->
       if Math.random() > 0.95
-        window.objects.push(new Food())
+        window.objects.push(new Plant())
     constructor: (genom, options)->
-      this.id = Food.id++
+      this.id = Plant.id++
       this.class = 'plant'
       window.plants++
       if options && options['coords']
@@ -401,7 +425,9 @@ jQuery ($) ->
         this.age = options['age']
       else 
         this.age = 0
+      
       this.genom = [-1, (this.color.red/70).round(100), (this.color.green/70).round(100), this.max_r*1.5]
+      
       this.ignore = false
       this.init_t = 1000
       this.t = this.init_t
@@ -422,7 +448,7 @@ jQuery ($) ->
           obj = window.objects[i]
           if obj.class == 'plant'
             d = dist(this, obj)
-            if d < 30
+            if d < 40
               this.neighbours++
 
         if this.age > Math.random()*10+5 && !this.reproduced && this.neighbours < 4
@@ -443,9 +469,7 @@ jQuery ($) ->
         if this.age > 80
           this.dead = true
           window.plants--
-          console.log 'pssssstrzczc'
-
-         
+          console.log 'roslinka umiera rzal :<'         
 
     reproduce: ->
       newColors = [this.color.red, this.color.green, this.color.blue]
@@ -462,26 +486,25 @@ jQuery ($) ->
         y: (if Math.random() > 0.5 then this.y+Math.random()*15+this.r else this.y-Math.random()*15-this.r).round(1)
       if coords.x > 10 && coords.x < can.w - 10 && coords.y > 10 && coords.y < can.h - 10
         newR = (this.r + rnd(0, 1)).nzero(0.5)
-        window.objects.push(new Food(null, {'coords': coords, 'color': newColor, 'r': newR}))
+        window.objects.push(new Plant(null, {'coords': coords, 'color': newColor, 'r': newR}))
         #console.log 'nowa roslinka!!!!!!!!!111'
         this.reproducedTime = Math.random()*20000+10000
       
     draw: ->
       ctx.save()
-      ctx.shadowColor = '#0f0';
-      ctx.shadowBlur = 2;
       ctx.beginPath()
       ctx.fillStyle = 'rgb('+this.color.red+','+this.color.green+','+this.color.blue+')'
       ctx.arc this.x, this.y, this.r, 0, Math.PI*2
       ctx.fill()
-
+      ctx.strokeStyle = '#0f0'
+      ctx.stroke()
       ctx.restore()
 
-  class Predator
+  class Poison
     @id = 0
     constructor: ->
-      this.class = 'predator'
-      this.id = Predator.id++
+      this.class = 'poison'
+      this.id = Poison.id++
       this.x = Math.random()*(can.w-100)+50
       this.y = Math.random()*(can.h-100)+50
       this.seed = Math.random()
@@ -502,14 +525,14 @@ jQuery ($) ->
         this.ignore = false
       ctx.save()
       ctx.beginPath()
-      ctx.shadowColor = '#f00';
-      ctx.shadowBlur = 2;
       ctx.fillStyle = this.color
       ctx.arc this.x, this.y, this.r, 0, Math.PI*2
+      ctx.strokeStyle = '#f00'
+      ctx.stroke()
       ctx.fill()
 
       ctx.restore()
-
+  time = 0
   init = ->
     window.objects = []
     window.organisms = []
@@ -517,16 +540,17 @@ jQuery ($) ->
     for i in [0...settings.initOrganisms]
       window.organisms.push new Organism() 
     for i in [0...Math.round(settings.initPlants)]
-      window.objects.push(new Food(null, {'age': (Math.random()*5+15).round(1)}))
+      window.objects.push(new Plant(null, {'age': (Math.random()*5+15).round(1)}))
       if i%4 == 0
-        window.objects.push(new Predator())
-    window.foods = 0
+        window.objects.push(new Poison())
+    
     time = 1000
     window.i = 0
     window.f0 = 0
-    window.f = window.foods
-    window.o = window.objects.length
+    window.f = window.plants
+    window.o = window.organisms.length
     window. o0 = 0
+    ctx2.clearRect(0, 0,can2.w, can2.h)
 
   removeDead = ->
     for i in [0...window.organisms.length]
@@ -535,11 +559,9 @@ jQuery ($) ->
         window.organisms.splice(i,1)
         removeDead()
         break
-    window.foods = 0
     for i in [0...window.objects.length]
       obj = window.objects[i]
-      if obj.class == 'plant'
-        window.foods++
+      
         
       if obj.dead
         window.objects.splice(i,1)
@@ -561,10 +583,10 @@ jQuery ($) ->
         obj.logic()
         obj.draw()
         
-      Food.spree()
+      Plant.spree()
 
       ctx.fillText "Organisms: "+window.organisms.length, 10, 10
-      ctx.fillText "Plants: "+window.fw, 10, 30
+      ctx.fillText "Plants: "+window.plants, 10, 30
 
       time -= config.interval
       if time < 0
@@ -580,7 +602,7 @@ jQuery ($) ->
         ctx2.moveTo window.i, (can2.h-(window.f0*0.5)).nzero(5)
         ctx2.lineTo window.i+1, (can2.h-(window.f*0.5)).nzero(5)
         window.f0 = window.f
-        window.f = window.foods
+        window.f = window.plants
         ctx2.stroke()
 
         ctx2.beginPath()
