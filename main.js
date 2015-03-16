@@ -15,8 +15,9 @@ uczenie sie od kolegow
     };
     settings = {
       energyFromFood: 0.5,
-      initPlants: ($(window).height() * $(window).width()) / 8000,
-      initOrganisms: 15
+      initPlants: ($(window).height() * $(window).width()) / 15000,
+      initOrganisms: 15,
+      initPredators: 5
     };
     canvas = document.getElementById('can');
     canvas2 = document.getElementById('can2');
@@ -123,10 +124,7 @@ uczenie sie od kolegow
           this.genom[1] = Math.random() * 20 + 20;
           this.genom[2] = Math.round(Math.random());
           this.genom[3] = Math.random() * 0.8;
-          this.genom[4] = Math.random() * 5;
-          if (Math.random() > 0.9) {
-            return this.genom[2] = (++this.genom[3]) % 2;
-          }
+          return this.genom[4] = Math.random() * 5;
         } else {
           return this.genom = genom;
         }
@@ -169,9 +167,12 @@ uczenie sie od kolegow
         }
         if (this.reproducedTime > 0) {
           this.reproduced = true;
-          return this.reproducedTime -= config.interval;
+          this.reproducedTime -= config.interval;
         } else {
-          return this.reproduced = false;
+          this.reproduced = false;
+        }
+        if (this.avoidPredators()) {
+          return this.move();
         }
       };
 
@@ -336,6 +337,35 @@ uczenie sie od kolegow
         }
       };
 
+      Organism.prototype.avoidPredators = function() {
+        var d, deg, i, inSight, pred, _i, _j, _len, _ref, _ref1;
+        inSight = [];
+        for (i = _i = 0, _ref = window.predators.length; 0 <= _ref ? _i < _ref : _i > _ref; i = 0 <= _ref ? ++_i : --_i) {
+          pred = window.objects[i];
+          d = dist(this, pred);
+          pred.d = d;
+          pred.index = i;
+          if (d < 100) {
+            inSight.push(pred);
+          }
+        }
+        inSight.sort(function(a, b) {
+          return a.d - b.d;
+        });
+        deg = 0;
+        _ref1 = this.inSight;
+        for (_j = 0, _len = _ref1.length; _j < _len; _j++) {
+          pred = _ref1[_j];
+          deg += ((-Math.atan2(this.x - pred.x, pred.y - this.y)) + Math.PI) / this.inSight.length;
+        }
+        if (this.deg < deg) {
+          this.deg += 0.1;
+        } else {
+          this.deg -= 0.1;
+        }
+        return inSight.length > 0;
+      };
+
       Organism.prototype.searchPartner = function() {
         var d, inSight, move, organism, _i, _len, _ref;
         this.searchingPartner = true;
@@ -422,6 +452,10 @@ uczenie sie od kolegow
       Predator.id = 0;
 
       function Predator(genom, options) {
+        this.id = Predator.id++;
+        this.setGenom(genom);
+        this.setOptions(options);
+        this.initialize();
         return;
       }
 
@@ -431,12 +465,6 @@ uczenie sie od kolegow
         this.r = (this.max_r / 5).nzero(1);
         this.speed = this.genom[1];
         this.friendly = this.genom[2];
-        this.layers = [3, 2];
-        this.brain = new NN({
-          'layers': this.layers,
-          'momentum': this.genom[3],
-          'rate': this.genom[4]
-        });
         this.fails = 0;
         this.successes = 0;
         this.energy = 15;
@@ -457,17 +485,169 @@ uczenie sie od kolegow
       Predator.prototype.setGenom = function(genom) {
         if (!genom) {
           this.genom = [];
-          this.genom[0] = Math.random() * 4 + 2;
+          this.genom[0] = Math.random() * 5 + 4;
           this.genom[1] = Math.random() * 20 + 20;
-          this.genom[2] = Math.round(Math.random());
-          this.genom[3] = Math.random() * 0.8;
-          this.genom[4] = Math.random() * 5;
-          if (Math.random() > 0.9) {
-            return this.genom[2] = (++this.genom[3]) % 2;
-          }
+          return this.genom[2] = Math.round(Math.random());
         } else {
           return this.genom = genom;
         }
+      };
+
+      Predator.prototype.setOptions = function(options) {
+        if (options) {
+          if (options['coords']) {
+            this.x = options['coords'].x;
+            this.y = options['coords'].y;
+          }
+          if (options['color']) {
+            return this.color = {
+              red: options['color'].red,
+              green: options['color'].green,
+              blue: options['color'].blue
+            };
+          }
+        } else {
+          if (Math.random() < 0.33) {
+            this.color = {
+              red: 255,
+              green: 0,
+              blue: 0
+            };
+          } else if (Math.random() < 0.66) {
+            this.color = {
+              red: 0,
+              green: 255,
+              blue: 0
+            };
+          } else {
+            this.color = {
+              red: 0,
+              green: 0,
+              blue: 255
+            };
+          }
+          this.x = Math.random() * (can.w + 10) - 20;
+          return this.y = Math.random() * (can.h + 10) - 20;
+        }
+      };
+
+      Predator.prototype.logic = function() {
+        if (this.deg > Math.PI * 2) {
+          this.deg = this.deg - Math.PI * 2;
+        } else if (this.deg < -2 * Math.PI) {
+          this.deg = this.deg + Math.PI * 2;
+        }
+        this.t -= config.interval;
+        if (this.t < 0) {
+          this.energy -= (this.r / (5 * config.interval) + this.speed / (config.interval * 50)) / 5;
+          this.t = this.init_t;
+          this.age += (config.interval / 1000) * this.init_t / config.interval;
+          this.age = this.age.round(10);
+          this.r += (this.age * 0.0001) * this.max_r;
+          if (this.r > this.max_r) {
+            this.r = this.max_r;
+          }
+          if (this.energy < 0 || this.age > this.maxAge) {
+            this.die();
+          } else if (this.energy > 20) {
+            this.needFood = false;
+          } else if (this.energy < 12) {
+            this.needFood = true;
+          }
+        }
+        if (this.needFood) {
+          this.searchFood();
+          this.energy -= (this.r / (5 * config.interval) + this.speed / (config.interval * 50)) / 2;
+        } else {
+          if (!this.reproduced) {
+            this.searchPartner();
+          }
+        }
+        if (this.reproducedTime > 0) {
+          this.reproduced = true;
+          return this.reproducedTime -= config.interval;
+        } else {
+          return this.reproduced = false;
+        }
+      };
+
+      Predator.prototype.die = function() {
+        return this.dead = true;
+      };
+
+      Predator.prototype.draw = function() {
+        ctx.lineWidth = 1;
+        ctx.save();
+        if (this.searchingPartner) {
+          ctx.shadowColor = 'rgb(' + (255 - this.color.red) + ',' + (255 - this.color.green) + ',' + (255 - this.color.blue) + ')';
+          ctx.shadowBlur = 6;
+        }
+        ctx.fillStyle = 'rgb(' + this.color.red + ',' + this.color.green + ',' + this.color.blue + ')';
+        ctx.strokeStyle = '#fff';
+        ctx.beginPath();
+        ctx.moveTo(this.x + Math.sin(this.deg) * this.r, this.y + Math.cos(this.deg) * this.r);
+        ctx.lineTo(this.x + Math.sin(this.deg + 2.5 * Math.PI / 3) * this.r, this.y + Math.cos(this.deg + 2.5 * Math.PI / 3) * this.r);
+        ctx.lineTo(this.x + Math.sin(this.deg - 2.5 * Math.PI / 3) * this.r, this.y + Math.cos(this.deg - 2.5 * Math.PI / 3) * this.r);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+        if (this.friendly) {
+          return ctx.fillText('.', this.x, this.y + 2 * this.r + 5);
+        }
+      };
+
+      Predator.prototype.searchFood = function() {
+        var d, degToObj, i, obj, objectsInSight, _i, _ref;
+        this.searchingPartner = false;
+        if (Math.random() > 0.9) {
+          this.deg += Math.PI * (Math.random() * 0.4 - 0.2);
+        }
+        objectsInSight = [];
+        for (i = _i = 0, _ref = window.organisms.length; 0 <= _ref ? _i < _ref : _i > _ref; i = 0 <= _ref ? ++_i : --_i) {
+          obj = window.organisms[i];
+          d = dist(this, obj);
+          obj.d = d;
+          obj.index = i;
+          if (d < 100) {
+            if (obj.r < this.r) {
+              objectsInSight.push(obj);
+            }
+          }
+        }
+        objectsInSight.sort(function(a, b) {
+          return a.d - b.d;
+        });
+        if (objectsInSight.length > 0) {
+          obj = objectsInSight[0];
+          degToObj = -Math.atan2(this.x - obj.x, obj.y - this.y);
+          this.deg = degToObj;
+          if (obj.d < obj.r + 3) {
+            this.successes++;
+            this.energy += obj.r * settings.energyFromFood;
+            if (this.r < this.max_r) {
+              this.r += obj.r / 2;
+            }
+            window.organisms.splice(obj.index, 1);
+          }
+        }
+        return this.move();
+      };
+
+      Predator.prototype.move = function() {
+        if (this.x > can.w - 10) {
+          this.x = 20;
+        }
+        if (this.x < 10) {
+          this.x = can.w - 20;
+        }
+        if (this.y < 10) {
+          this.y = can.h - 20;
+        }
+        if (this.y > can.h - 10) {
+          this.y = 20;
+        }
+        this.x += this.speed * Math.sin(this.deg) / 10;
+        return this.y += this.speed * Math.cos(this.deg) / 10;
       };
 
       return Predator;
@@ -653,9 +833,10 @@ uczenie sie od kolegow
     })();
     time = 0;
     init = function() {
-      var i, _i, _j, _ref, _ref1;
+      var i, _i, _j, _k, _ref, _ref1, _ref2;
       window.objects = [];
       window.organisms = [];
+      window.predators = [];
       window.plants = 0;
       for (i = _i = 0, _ref = settings.initOrganisms; 0 <= _ref ? _i < _ref : _i > _ref; i = 0 <= _ref ? ++_i : --_i) {
         window.organisms.push(new Organism());
@@ -668,6 +849,9 @@ uczenie sie od kolegow
           window.objects.push(new Poison());
         }
       }
+      for (i = _k = 0, _ref2 = settings.initPredators; 0 <= _ref2 ? _k <= _ref2 : _k >= _ref2; i = 0 <= _ref2 ? ++_k : --_k) {
+        window.predators.push(new Predator());
+      }
       time = 1000;
       window.i = 0;
       window.f0 = 0;
@@ -677,7 +861,7 @@ uczenie sie od kolegow
       return ctx2.clearRect(0, 0, can2.w, can2.h);
     };
     removeDead = function() {
-      var i, obj, organism, _i, _j, _ref, _ref1, _results;
+      var i, obj, organism, _i, _j, _k, _ref, _ref1, _ref2, _results;
       for (i = _i = 0, _ref = window.organisms.length; 0 <= _ref ? _i < _ref : _i > _ref; i = 0 <= _ref ? ++_i : --_i) {
         organism = window.organisms[i];
         if (organism.dead) {
@@ -686,11 +870,19 @@ uczenie sie od kolegow
           break;
         }
       }
-      _results = [];
       for (i = _j = 0, _ref1 = window.objects.length; 0 <= _ref1 ? _j < _ref1 : _j > _ref1; i = 0 <= _ref1 ? ++_j : --_j) {
         obj = window.objects[i];
         if (obj.dead) {
           window.objects.splice(i, 1);
+          removeDead();
+          break;
+        }
+      }
+      _results = [];
+      for (i = _k = 0, _ref2 = window.predators.length; 0 <= _ref2 ? _k < _ref2 : _k > _ref2; i = 0 <= _ref2 ? ++_k : --_k) {
+        obj = window.predators[i];
+        if (obj.dead) {
+          window.predators.splice(i, 1);
           removeDead();
           break;
         } else {
@@ -700,7 +892,7 @@ uczenie sie od kolegow
       return _results;
     };
     loopx = function() {
-      var i, obj, organism, _i, _j, _len, _ref, _ref1;
+      var i, obj, organism, predator, _i, _j, _k, _len, _len1, _ref, _ref1, _ref2;
       if (!config.pause) {
         if (window.organisms.length <= 0) {
           config.pause = true;
@@ -718,9 +910,15 @@ uczenie sie od kolegow
           obj.logic();
           obj.draw();
         }
+        _ref2 = window.predators;
+        for (_k = 0, _len1 = _ref2.length; _k < _len1; _k++) {
+          predator = _ref2[_k];
+          predator.logic();
+          predator.draw();
+        }
         Plant.spree();
-        ctx.fillText("Organisms: " + window.organisms.length, 10, 10);
-        ctx.fillText("Plants: " + window.plants, 10, 30);
+        ctx.fillText("Organisms: " + window.organisms.length, 10, 20);
+        ctx.fillText("Plants: " + window.plants, 10, 40);
         time -= config.interval;
         if (time < 0) {
           removeDead();
@@ -796,6 +994,7 @@ uczenie sie od kolegow
       event.preventDefault();
       settings.initPlants = $('#plants').val();
       settings.initOrganisms = $('#organisms').val();
+      settings.initPredators = $('#predators').val();
       return init();
     });
   });
